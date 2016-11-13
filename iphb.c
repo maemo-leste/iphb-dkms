@@ -190,6 +190,10 @@ static unsigned int iphbd_poll(struct file *file, poll_table *wait)
 	if (trigger_poll) {
 		mask |= POLLIN | POLLRDNORM;
 		mask |= POLLOUT | POLLWRNORM;
+		/*
+		 * Keep compatible with fremantle iphbd, which doesn't do reads
+		 */
+		trigger_poll = 0;
 	}
 	return mask;
 }
