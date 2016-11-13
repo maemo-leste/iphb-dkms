@@ -31,8 +31,6 @@
 #include <linux/list.h>
 #include <linux/string.h>
 #include <linux/time.h>
-#include <linux/utsname.h>
-#include <linux/utsrelease.h>
 #include <linux/notifier.h>
 #include <linux/netfilter.h>
 #include <linux/miscdevice.h>
@@ -435,7 +433,6 @@ static struct nf_hook_ops net_in6_ops = {
 static int __init init(void)
 {
 	int ret;
-	char *uts_release = (utsname())->release;
 
 	INIT_LIST_HEAD(&keepalives.list);
 
@@ -458,14 +455,7 @@ static int __init init(void)
 	nf_register_hook(&net_out6_ops);
 	nf_register_hook(&net_in6_ops);
 
-	if (strcmp(uts_release,  UTS_RELEASE) == 0)
-		dev_info(iphb_dev, "Module registered in %s, built %s %s\n",
-			 uts_release, __DATE__, __TIME__);
-	else
-		dev_info(iphb_dev,
-			 "Module registered in %s, compiled in %s, "
-			 "built %s %s\n",
-			 uts_release, UTS_RELEASE, __DATE__, __TIME__);
+	pr_info(MY_NAME ": Keepalive handler module registered\n");
 
 	return 0;
 }
