@@ -396,10 +396,10 @@ static unsigned int net_out_hook(void *priv,
 		return NF_ACCEPT;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
-	keepalive->net = net;
+	keepalive->net = state->net;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
-	keepalive->sk = sk;
+	keepalive->sk = state->sk;
 #endif
 	keepalive->skb = skb;
 	keepalive->okfn = okfn;
