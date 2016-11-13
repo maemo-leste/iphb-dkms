@@ -49,6 +49,8 @@
 #include <linux/tcp.h>
 #include <net/ip.h>
 
+#include <linux/version.h>
+
 
 #define MY_NAME "iphb"
 #define MAX_KEEPALIVES 20
@@ -61,8 +63,20 @@
 struct keepalives {
 	struct list_head list;
 	int num_keeps;  /* current number of keepalives in the list */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+	struct net *net;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+	struct sock *sk;
+#endif
 	struct sk_buff *skb;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 	int (*okfn)(struct sk_buff *);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+	int (*okfn)(struct sock *, struct sk_buff *);
+#else
+	int (*okfn)(struct net *, struct sock *, struct sk_buff *);
+#endif
 };
 
 
@@ -72,8 +86,20 @@ struct keepalives {
  */
 struct packets {
 	struct list_head list;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+	struct net *net;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+	struct sock *sk;
+#endif
 	struct sk_buff *skb;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 	int (*okfn)(struct sk_buff *);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+	int (*okfn)(struct sock *, struct sk_buff *);
+#else
+	int (*okfn)(struct net *, struct sock *, struct sk_buff *);
+#endif
 };
 
 
@@ -130,6 +156,12 @@ static void flush_keepalives(int notify)
 			spin_unlock_bh(&keepalives_lock);
 			return;
 		}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+		packet->net = entry->net;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+		packet->sk = entry->sk;
+#endif
 		packet->skb = entry->skb;
 		packet->okfn = entry->okfn;
 		list_add_tail(&packet->list, &packets.list);
@@ -157,7 +189,13 @@ static void flush_keepalives(int notify)
 		int ret;
 		packet = list_entry(p, struct packets, list);
 		/* Send the keepalive to network */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 		ret = packet->okfn(packet->skb);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+		ret = packet->okfn(packet->sk, packet->skb);
+#else
+		ret = packet->okfn(packet->net, packet->sk, packet->skb);
+#endif
 		list_del(p);
 		kfree(packet);
 	}
@@ -222,7 +260,11 @@ static ssize_t iphbd_write(struct file *filp,
 		return r;
 
 	/* conversion errors are ignored and they will cause a flush */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+	kstrtol(received, 10, &val);
+#else
 	strict_strtol(received, 10, &val);
+#endif
 
 	if (val > 0) {
 		if (val > MAX_FLUSH_VALUE)
@@ -250,12 +292,36 @@ static ssize_t iphbd_read(struct file *filp,
 }
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 static unsigned int net_out_hook(unsigned int hook,
 				 struct sk_buff *skb,
 				 const struct net_device *indev,
 				 const struct net_device *outdev,
 				 int (*okfn)(struct sk_buff *))
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
+static unsigned int net_out_hook(const struct nf_hook_ops *ops,
+				 struct sk_buff *skb,
+				 const struct net_device *indev,
+				 const struct net_device *outdev,
+				 int (*okfn)(struct sk_buff *))
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+static unsigned int net_out_hook(const struct nf_hook_ops *ops,
+				 struct sk_buff *skb,
+				 const struct nf_hook_state *state)
+#else
+static unsigned int net_out_hook(void *priv,
+				 struct sk_buff *skb,
+				 const struct nf_hook_state *state)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+	unsigned int hook = state->hook;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+	unsigned int hook = ops->hooknum;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+	int (*okfn)(struct sk_buff *) = state->okfn;
+#endif
 	struct keepalives *keepalive;
 	struct iphdr *ip;
 	struct ipv6hdr *ip6 = NULL;
@@ -329,6 +395,12 @@ static unsigned int net_out_hook(unsigned int hook,
 	if (!keepalive)
 		return NF_ACCEPT;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+	keepalive->net = net;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+	keepalive->sk = sk;
+#endif
 	keepalive->skb = skb;
 	keepalive->okfn = okfn;
 
@@ -355,11 +427,27 @@ static unsigned int net_out_hook(unsigned int hook,
 
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 static unsigned int net_in_hook(unsigned int hook,
 				struct sk_buff *skb,
 				const struct net_device *indev,
 				const struct net_device *outdev,
 				int (*okfn)(struct sk_buff *))
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
+static unsigned int net_in_hook(const struct nf_hook_ops *ops,
+				struct sk_buff *skb,
+				const struct net_device *indev,
+				const struct net_device *outdev,
+				int (*okfn)(struct sk_buff *))
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+static unsigned int net_in_hook(const struct nf_hook_ops *ops,
+				struct sk_buff *skb,
+				const struct nf_hook_state *state)
+#else
+static unsigned int net_in_hook(void *priv,
+				struct sk_buff *skb,
+				const struct nf_hook_state *state)
+#endif
 {
 	if (!iphb_is_enabled)
 		return NF_ACCEPT;
@@ -379,7 +467,9 @@ static unsigned int net_in_hook(unsigned int hook,
  * with this module.
  */
 static const struct file_operations iphb_fops = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
+#endif
 	.write = iphbd_write,
 	.read = iphbd_read,
 	.poll = iphbd_poll,
@@ -396,7 +486,9 @@ static struct miscdevice iphb_misc = {
 /* hook for packets sent to interface */
 static struct nf_hook_ops net_out_ops = {
 	.list = { NULL, NULL },
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
+#endif
 	.hook = net_out_hook,
 	.pf = PF_INET,
 	.hooknum = NF_INET_POST_ROUTING,
@@ -404,7 +496,9 @@ static struct nf_hook_ops net_out_ops = {
 };
 static struct nf_hook_ops net_out6_ops = {
 	.list = { NULL, NULL },
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
+#endif
 	.hook = net_out_hook,
 	.pf = PF_INET6,
 	.hooknum = NF_INET_POST_ROUTING,
@@ -414,7 +508,9 @@ static struct nf_hook_ops net_out6_ops = {
 /* hook for packets received from interface */
 static struct nf_hook_ops net_in_ops = {
 	.list = { NULL, NULL },
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
+#endif
 	.hook = net_in_hook,
 	.pf = PF_INET,
 	.hooknum = NF_INET_PRE_ROUTING,
@@ -422,7 +518,9 @@ static struct nf_hook_ops net_in_ops = {
 };
 static struct nf_hook_ops net_in6_ops = {
 	.list = { NULL, NULL },
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
+#endif
 	.hook = net_in_hook,
 	.pf = PF_INET6,
 	.hooknum = NF_INET_PRE_ROUTING,
