@@ -3,7 +3,7 @@
  *
  * Netfilter module to delay outgoing TCP keepalive messages.
  *
- * Copyright (C) 2008 Nokia Corporation. All rights reserved.
+ * Copyright (C) 2008-2010 Nokia Corporation. All rights reserved.
  * Written by Jukka Rissanen <jukka.rissanen@nokia.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
  * 02110-1301 USA
  */
 
-#ifdef IP_NF_HB_DEBUG
+#ifdef CONFIG_IP_NF_HB_DEBUG
 #define DEBUG
 #endif
 
@@ -38,6 +38,8 @@
 #include <linux/miscdevice.h>
 #include <linux/device.h>
 #include <linux/spinlock.h>
+#include <linux/timer.h>
+#include <linux/jiffies.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/netfilter_ipv6.h>
 #include <linux/fs.h>
@@ -88,6 +90,9 @@ static DECLARE_WAIT_QUEUE_HEAD(iphb_pollq);
 static int iphb_is_enabled;
 static struct device *iphb_dev;
 
+static void timed_flush(unsigned long not_used);
+static DEFINE_TIMER(flush_timer, timed_flush, 0, 0);
+
 
 static void flush_keepalives(int notify)
 {
@@ -98,10 +103,7 @@ static void flush_keepalives(int notify)
 	if (keepalives.num_keeps > 0)
 		dev_dbg(iphb_dev, "Flush (%d)\n", keepalives.num_keeps);
 
-	/*
-	 * If notify is set to 1, then userspace is notified about
-	 * the flush.
-	 */
+	/* Check if we need to notify user space about the flush */
 	if (notify) {
 		unsigned long current_time = get_seconds();
 		if (current_time >
@@ -142,6 +144,12 @@ static void flush_keepalives(int notify)
 
 	spin_unlock_bh(&keepalives_lock);
 
+	/*
+	 * We can remove the flush timer now as there is no need for it
+	 * anymore. A new outgoing keepalive packet will re-create it.
+	 */
+	del_timer(&flush_timer);
+
 
 	/*
 	 * Send the packets to net from outside of locked area
@@ -155,6 +163,12 @@ static void flush_keepalives(int notify)
 		list_del(p);
 		kfree(packet);
 	}
+}
+
+
+static void timed_flush(unsigned long not_used)
+{
+	flush_keepalives(1);
 }
 
 
@@ -176,7 +190,6 @@ static unsigned int iphbd_poll(struct file *file, poll_table *wait)
 	if (trigger_poll) {
 		mask |= POLLIN | POLLRDNORM;
 		mask |= POLLOUT | POLLWRNORM;
-		trigger_poll = 0;
 	}
 	return mask;
 }
@@ -193,14 +206,18 @@ static int iphbd_release(struct inode *inode, struct file *file)
 
 
 static ssize_t iphbd_write(struct file *filp,
-			   const char *buff,
+			   const char __user *buff,
 			   size_t len,
 			   loff_t *off)
 {
 	/* If userland writes to the device, then we flush. */
 	long val;
 	char received[MAX_RECV_LEN + 1];
-	snprintf(received, min((size_t)MAX_RECV_LEN, len + 1), "%s", buff);
+	int r;
+
+	r = copy_from_user(received, buff, min((size_t)MAX_RECV_LEN, len + 1));
+	if (r < 0)
+		return r;
 
 	/* conversion errors are ignored and they will cause a flush */
 	strict_strtol(received, 10, &val);
@@ -213,6 +230,20 @@ static ssize_t iphbd_write(struct file *filp,
 		flush_notification = (unsigned int)val;
 	}
 	flush_keepalives(0);
+	return 0;
+}
+
+
+static ssize_t iphbd_read(struct file *filp,
+			  char __user *buff,
+			  size_t len,
+			  loff_t *off)
+{
+	/*
+	 * If userspace reads the device, we clear the polling status so that
+	 * it can poll again.
+	 */
+	trigger_poll = 0;
 	return 0;
 }
 
@@ -304,6 +335,19 @@ static unsigned int net_out_hook(unsigned int hook,
 	list_add_tail(&keepalive->list, &keepalives.list);
 	spin_unlock_bh(&keepalives_lock);
 
+	/*
+	 * If the flush timer is not yet set, then update it
+	 * to flush the queue after a timeout (typically 30 sec).
+	 */
+	if (!timer_pending(&flush_timer)) {
+		struct timeval timeout = { .tv_sec = flush_notification,
+					   .tv_usec = 0 };
+		unsigned long future = timeval_to_jiffies(&timeout);
+		mod_timer(&flush_timer, round_jiffies(jiffies + future));
+		dev_dbg(iphb_dev, "Timer to %lu (%lu + %lu)\n",
+			flush_timer.expires, jiffies, future);
+	}
+
 	return NF_STOLEN;
 }
 
@@ -332,9 +376,10 @@ static unsigned int net_in_hook(unsigned int hook,
  * The user space daemon (iphbd) needs the interface for communicating
  * with this module.
  */
-static struct file_operations iphb_fops = {
+static const struct file_operations iphb_fops = {
 	.owner = THIS_MODULE,
 	.write = iphbd_write,
+	.read = iphbd_read,
 	.poll = iphbd_poll,
 	.open = iphbd_open,
 	.release = iphbd_release
@@ -389,6 +434,8 @@ static int __init init(void)
 	char *uts_release = (utsname())->release;
 
 	INIT_LIST_HEAD(&keepalives.list);
+
+	init_timer_deferrable(&flush_timer);
 
 	ret = misc_register(&iphb_misc);
 	if (ret < 0) {
