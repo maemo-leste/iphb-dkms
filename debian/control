@@ -1,0 +1,20 @@
+Source: iphb-dkms
+Section: kernel
+Priority: optional
+Maintainer: Pali Rohár <pali.rohar@gmail.com>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.8
+
+Package: iphb-dkms
+Architecture: all
+Depends: dkms
+Description: IP heartbeat support driver (DKMS)
+ IP heartbeat support will let you queue TCP keepalive messages.
+ The idea is to delay outgoing TCP keepalive (heartbeat) messages
+ until they are sent when triggered by user space daemon (iphbd).
+ The keepalives are also sent if we receive packets from the network
+ or if the keepalive queue is full. The feature is used in wireless
+ networks so that we do not wake up radio all the time and also save
+ battery when keepalives are synchronized. The keepalive queueing
+ is only activated if iphbd is running and active, default behaviour
+ is to pass keepalives as is.
