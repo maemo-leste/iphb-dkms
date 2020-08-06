@@ -319,8 +319,13 @@ static unsigned int net_out_hook(void *priv,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
 	unsigned int hook = ops->hooknum;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 	int (*okfn)(struct sk_buff *) = state->okfn;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+	int (*okfn)(struct sock *, struct sk_buff *) = state->okfn;
+#else
+	int (*okfn)(struct net *, struct sock *, struct sk_buff *) =
+		state->okfn;
 #endif
 	struct keepalives *keepalive;
 	struct iphdr *ip;
@@ -485,7 +490,9 @@ static struct miscdevice iphb_misc = {
 
 /* hook for packets sent to interface */
 static struct nf_hook_ops net_out_ops = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 	.list = { NULL, NULL },
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
 #endif
@@ -495,7 +502,9 @@ static struct nf_hook_ops net_out_ops = {
 	.priority = NF_IP_PRI_LAST
 };
 static struct nf_hook_ops net_out6_ops = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 	.list = { NULL, NULL },
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
 #endif
@@ -507,7 +516,9 @@ static struct nf_hook_ops net_out6_ops = {
 
 /* hook for packets received from interface */
 static struct nf_hook_ops net_in_ops = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 	.list = { NULL, NULL },
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
 #endif
@@ -517,7 +528,9 @@ static struct nf_hook_ops net_in_ops = {
 	.priority = NF_IP_PRI_FIRST
 };
 static struct nf_hook_ops net_in6_ops = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 	.list = { NULL, NULL },
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
 	.owner = THIS_MODULE,
 #endif
@@ -547,12 +560,17 @@ static int __init init(void)
 		pr_err(MY_NAME ": Cannot create device\n");
 		return -ENODEV;
 	}
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 	nf_register_hook(&net_out_ops);
 	nf_register_hook(&net_in_ops);
 	nf_register_hook(&net_out6_ops);
 	nf_register_hook(&net_in6_ops);
-
+#else
+	nf_register_net_hook(&init_net, &net_out_ops);
+	nf_register_net_hook(&init_net, &net_in_ops);
+	nf_register_net_hook(&init_net, &net_out6_ops);
+	nf_register_net_hook(&init_net, &net_in6_ops);
+#endif
 	pr_info(MY_NAME ": Keepalive handler module registered\n");
 
 	return 0;
@@ -561,11 +579,17 @@ static int __init init(void)
 
 static void __exit fini(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 	nf_unregister_hook(&net_out_ops);
 	nf_unregister_hook(&net_in_ops);
 	nf_unregister_hook(&net_out6_ops);
 	nf_unregister_hook(&net_in6_ops);
-
+#else
+	nf_unregister_net_hook(&init_net, &net_out_ops);
+	nf_unregister_net_hook(&init_net, &net_in_ops);
+	nf_unregister_net_hook(&init_net, &net_out6_ops);
+	nf_unregister_net_hook(&init_net, &net_in6_ops);
+#endif
 	flush_keepalives(0);
 
 	misc_deregister(&iphb_misc);
