@@ -1,3 +1,9 @@
+iphb-dkms (1.1) unstable; urgency=low
+
+  * Build on kernels > 4.14
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Thu, 06 Aug 2020 19:18:33 +0300
+
 iphb-dkms (1.0) unstable; urgency=low
 
   * Initial Release.
