@@ -114,9 +114,13 @@ static DECLARE_WAIT_QUEUE_HEAD(iphb_pollq);
 static int iphb_is_enabled;
 static struct device *iphb_dev;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
 static void timed_flush(unsigned long not_used);
 static DEFINE_TIMER(flush_timer, timed_flush, 0, 0);
-
+#else
+static void timed_flush(struct timer_list *unused);
+static struct timer_list flush_timer;
+#endif
 
 static void flush_keepalives(int notify)
 {
@@ -201,8 +205,11 @@ static void flush_keepalives(int notify)
 	}
 }
 
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
 static void timed_flush(unsigned long not_used)
+#else
+static void timed_flush(struct timer_list *unused)
+#endif
 {
 	flush_keepalives(1);
 }
@@ -546,9 +553,11 @@ static int __init init(void)
 	int ret;
 
 	INIT_LIST_HEAD(&keepalives.list);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
 	init_timer_deferrable(&flush_timer);
-
+#else
+	timer_setup(&flush_timer, timed_flush, TIMER_DEFERRABLE);
+#endif
 	ret = misc_register(&iphb_misc);
 	if (ret < 0) {
 		pr_err(MY_NAME ": Cannot create device (%d)\n", ret);
