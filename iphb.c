@@ -106,7 +106,12 @@ struct packets {
 static struct keepalives keepalives; /* List of keepalive messages */
 static DEFINE_SPINLOCK(keepalives_lock);  /* protects the keepalive list */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,11,0)
+static time64_t last_notification;
+#else
 static unsigned long last_notification;
+#endif
+
 static unsigned int flush_notification = MAX_FLUSH_VALUE;
 static int trigger_poll;
 static DECLARE_WAIT_QUEUE_HEAD(iphb_pollq);
@@ -133,7 +138,11 @@ static void flush_keepalives(int notify)
 
 	/* Check if we need to notify user space about the flush */
 	if (notify) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,11,0)
+		time64_t current_time = ktime_get_real_seconds();
+#else
 		unsigned long current_time = get_seconds();
+#endif
 		if (current_time >
 		    (last_notification + flush_notification)) {
 			dev_dbg(iphb_dev, "Wake up daemon\n");
@@ -426,9 +435,15 @@ static unsigned int net_out_hook(void *priv,
 	 * to flush the queue after a timeout (typically 30 sec).
 	 */
 	if (!timer_pending(&flush_timer)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,11,0)
+		struct timespec64 timeout = { .tv_sec = flush_notification,
+					      .tv_nsec = 0 };
+		unsigned long future = timespec64_to_jiffies(&timeout);
+#else
 		struct timeval timeout = { .tv_sec = flush_notification,
 					   .tv_usec = 0 };
 		unsigned long future = timeval_to_jiffies(&timeout);
+#endif
 		mod_timer(&flush_timer, round_jiffies(jiffies + future));
 		dev_dbg(iphb_dev, "Timer to %lu (%lu + %lu)\n",
 			flush_timer.expires, jiffies, future);
