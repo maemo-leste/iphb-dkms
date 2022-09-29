@@ -21,7 +21,7 @@ set -e
 case "$1" in
     configure)
         for kernel in $(ls /lib/modules/); do
-            dkms install iphb/1.0 -k $kernel || true
+            dkms install iphb/1.2 -k $kernel || true
         done
     ;;
 

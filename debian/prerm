@@ -19,7 +19,7 @@ set -e
 
 case "$1" in
     remove|upgrade|deconfigure)
-        dkms remove iphb/1.0 --all || true
+        dkms remove iphb/1.2 --all || true
     ;;
 
     failed-upgrade)
