@@ -1,3 +1,9 @@
+iphb-dkms (1.2) unstable; urgency=low
+
+  * Build on kernels >= 5.11
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Thu, 29 Sep 2022 16:39:41 +0300
+
 iphb-dkms (1.1) unstable; urgency=low
 
   * Build on kernels > 4.14
