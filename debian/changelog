@@ -1,3 +1,9 @@
+iphb-dkms (1.3) unstable; urgency=low
+
+  * Fix "warning: ignoring return value of 'kstrtol'"
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Wed, 02 Nov 2022 09:32:52 +0200
+
 iphb-dkms (1.2) unstable; urgency=low
 
   * Build on kernels >= 5.11
