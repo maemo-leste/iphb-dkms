@@ -277,7 +277,8 @@ static ssize_t iphbd_write(struct file *filp,
 
 	/* conversion errors are ignored and they will cause a flush */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
-	kstrtol(received, 10, &val);
+	if (kstrtol(received, 10, &val) < 0)
+		val = 0;
 #else
 	strict_strtol(received, 10, &val);
 #endif
