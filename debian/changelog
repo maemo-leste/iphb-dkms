@@ -1,3 +1,9 @@
+iphb-dkms (1.4) unstable; urgency=low
+
+  * Package it the debian way
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Fri, 07 Apr 2023 07:42:41 +0300
+
 iphb-dkms (1.3) unstable; urgency=low
 
   * Fix "warning: ignoring return value of 'kstrtol'"
