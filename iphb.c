@@ -436,7 +436,7 @@ static unsigned int net_out_hook(void *priv,
 	 * to flush the queue after a timeout (typically 30 sec).
 	 */
 	if (!timer_pending(&flush_timer)) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,11,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0)
 		struct timespec64 timeout = { .tv_sec = flush_notification,
 					      .tv_nsec = 0 };
 		unsigned long future = timespec64_to_jiffies(&timeout);
