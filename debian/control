@@ -7,7 +7,7 @@ Standards-Version: 3.9.8
 
 Package: iphb-dkms
 Architecture: all
-Depends: dkms, linux-headers | linux-headers-amd64
+Depends: ${misc:Depends}, linux-headers | linux-headers-amd64
 Description: IP heartbeat support driver (DKMS)
  IP heartbeat support will let you queue TCP keepalive messages.
  The idea is to delay outgoing TCP keepalive (heartbeat) messages
