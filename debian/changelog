@@ -1,3 +1,9 @@
+iphb-dkms (1.6) unstable; urgency=low
+
+  * Also accept arm64 headers
+
+ -- Merlijn Wajer <merlijn@wizzup.org>  Thu, 14 Mar 2024 18:03:22 +0100
+
 iphb-dkms (1.5) unstable; urgency=low
 
   * Fix build on 5.10 kernels
