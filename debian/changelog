@@ -1,3 +1,9 @@
+iphb-dkms (1.7) unstable; urgency=low
+
+  * Fix build on 6.18 kernels
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Wed, 29 Jul 2026 20:13:55 +0300
+
 iphb-dkms (1.6) unstable; urgency=low
 
   * Also accept arm64 headers
