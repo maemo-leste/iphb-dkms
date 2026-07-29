@@ -191,8 +191,11 @@ static void flush_keepalives(int notify)
 	 * We can remove the flush timer now as there is no need for it
 	 * anymore. A new outgoing keepalive packet will re-create it.
 	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
+	timer_delete(&flush_timer);
+#else
 	del_timer(&flush_timer);
-
+#endif
 
 	/*
 	 * Send the packets to net from outside of locked area
